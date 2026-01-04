@@ -1,0 +1,7 @@
+﻿**/bin/
+**/obj/
+.vs/
+**/.vs/
+**/node_modules/
+.env
+**/.env
