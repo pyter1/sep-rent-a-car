@@ -12,4 +12,7 @@ public sealed class BankPayment
     public bool Attempted { get; set; }
     public DateTime ExpiresAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+    public bool NotifiedPsp { get; set; } = false;
+
+
 }

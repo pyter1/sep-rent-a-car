@@ -53,30 +53,54 @@ public sealed class PaymentsController : ControllerBase
         return Ok(new BankInitResponse(payment.Id, paymentUrl));
     }
 
-    [HttpGet("{paymentId:guid}")]
-    public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationToken ct)
+[HttpGet("{paymentId:guid}")]
+public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationToken ct)
+{
+    var p = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
+    if (p is null) return NotFound();
+
+    var now = DateTime.UtcNow;
+
+    // 1) Transition: Created -> Expired
+    if (p.Status == PaymentStatus.Created && now > p.ExpiresAtUtc)
     {
-        var s = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
-        if (s is null) return NotFound();
-
-        // Expire session if needed
-        if (s.Status == PaymentStatus.Created && DateTime.UtcNow > s.ExpiresAtUtc)
-        {
-            s.Status = PaymentStatus.Expired;
-            await _db.SaveChangesAsync(ct);
-        }
-
-        return Ok(new
-        {
-            paymentId = s.Id,
-            pspTransactionId = s.PspTransactionId,
-            amount = s.Amount,
-            currency = s.Currency,
-            status = s.Status,
-            attempted = s.Attempted,
-            expiresAtUtc = s.ExpiresAtUtc
-        });
+        p.Status = PaymentStatus.Expired;
+        // Attempted remains false
     }
+
+    // 2) Side effect: notify PSP exactly once
+    if (p.Status == PaymentStatus.Expired && !p.NotifiedPsp)
+    {
+        try
+        {
+            await _psp.NotifyAsync(
+                new PspBankNotifyRequest(p.PspTransactionId, p.Id, p.Status),
+                ct
+            );
+
+            p.NotifiedPsp = true; // set only on success
+        }
+        catch
+        {
+            // PSP is probably down; keep NotifiedPsp=false so you can retry later
+        }
+    }
+
+    await _db.SaveChangesAsync(ct);
+
+    return Ok(new
+    {
+        paymentId = p.Id,
+        pspTransactionId = p.PspTransactionId,
+        amount = p.Amount,
+        currency = p.Currency,
+        status = p.Status,
+        attempted = p.Attempted,
+        expiresAtUtc = p.ExpiresAtUtc,
+        notifiedPsp = p.NotifiedPsp
+    });
+}
+
 
     [HttpPost("{paymentId:guid}/card/submit")]
     public async Task<ActionResult<object>> SubmitCard(Guid paymentId, [FromBody] CardSubmitRequest request, CancellationToken ct)
@@ -110,6 +134,8 @@ public sealed class PaymentsController : ControllerBase
         try
         {
             await _psp.NotifyAsync(new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status), ct);
+            s.NotifiedPsp = true;
+            await _db.SaveChangesAsync(ct);
         }
         catch
         {
@@ -141,6 +167,8 @@ public sealed class PaymentsController : ControllerBase
         try
         {
             await _psp.NotifyAsync(new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status), ct);
+            s.NotifiedPsp = true;
+            await _db.SaveChangesAsync(ct);
         }
         catch { }
 

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Psp.Api.Data;
@@ -11,9 +12,11 @@ using Psp.Api.Data;
 namespace Psp.Api.Migrations
 {
     [DbContext(typeof(PspDbContext))]
-    partial class PspDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260106022611_AddMerchantCallbackTracking")]
+    partial class AddMerchantCallbackTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

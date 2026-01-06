@@ -11,63 +11,79 @@ namespace Psp.Api.Controllers;
 public sealed class BankNotifyController : ControllerBase
 {
     private readonly PspDbContext _db;
-    private readonly HttpClient _http = new(); // simple for now; later use IHttpClientFactory
+    private readonly IHttpClientFactory _httpFactory;
 
-    public BankNotifyController(PspDbContext db)
+    public BankNotifyController(PspDbContext db, IHttpClientFactory httpFactory)
     {
         _db = db;
+        _httpFactory = httpFactory;
     }
 
     [HttpPost("notify")]
-    public async Task<ActionResult> Notify([FromBody] PspBankNotifyRequest request, CancellationToken ct)
+    public async Task<IActionResult> Notify([FromBody] PspBankNotifyRequest request, CancellationToken ct)
     {
-        var tx = await _db.Transactions
-            .FirstOrDefaultAsync(x => x.Id == request.PspTransactionId, ct);
+        var tx = await _db.Transactions.FirstOrDefaultAsync(x => x.Id == request.PspTransactionId, ct);
+        if (tx is null) return NotFound("Unknown PSP transaction.");
 
-        if (tx is null)
-            return NotFound("Unknown PSP transaction.");
+        // Always persist BankPaymentId (helpful for reconciliation/debugging)
+        tx.BankPaymentId = request.BankPaymentId;
 
-        // Map Bank status -> PSP transaction status
+        // Map Bank status -> PSP status
         var newStatus = request.Status switch
         {
-            PaymentStatus.Paid => TransactionStatus.Paid,
-            PaymentStatus.Failed => TransactionStatus.Failed,
+            PaymentStatus.Paid    => TransactionStatus.Paid,
+            PaymentStatus.Failed  => TransactionStatus.Failed,
             PaymentStatus.Expired => TransactionStatus.Failed,
-            _ => TransactionStatus.Error
+            _                     => TransactionStatus.Error
         };
 
-        // Update DB
         tx.Status = newStatus;
 
-        // Keep bank payment id in DB (if you store it)
-        if (request.BankPaymentId != Guid.Empty)
-            tx.BankPaymentId = request.BankPaymentId;
+        // If already successfully notified merchant, keep idempotent behavior
+        if (tx.MerchantNotified)
+        {
+            await _db.SaveChangesAsync(ct);
+            return Ok();
+        }
 
-        await _db.SaveChangesAsync(ct);
-
-        // Select callback URL based on status
         var callbackUrl = newStatus switch
         {
-            TransactionStatus.Paid => tx.SuccessUrl,
+            TransactionStatus.Paid   => tx.SuccessUrl,
             TransactionStatus.Failed => tx.FailUrl,
-            _ => tx.ErrorUrl
+            _                        => tx.ErrorUrl
         };
+
+        tx.MerchantNotifyAttempts += 1;
+
+        var client = _httpFactory.CreateClient("MerchantCallback");
 
         try
         {
-            await _http.PostAsJsonAsync(callbackUrl, new
+            var resp = await client.PostAsJsonAsync(callbackUrl, new
             {
-                pspTransactionId = request.PspTransactionId,
-                bankPaymentId = request.BankPaymentId,
-                status = newStatus.ToString()
+                pspTransactionId = tx.Id,
+                bankPaymentId = tx.BankPaymentId,
+                status = tx.Status.ToString()
             }, ct);
 
-            return Ok();
+            if (resp.IsSuccessStatusCode)
+            {
+                tx.MerchantNotified = true;
+                tx.MerchantNotifiedAtUtc = DateTime.UtcNow;
+                tx.MerchantNotifyLastError = null;
+            }
+            else
+            {
+                tx.MerchantNotifyLastError = $"HTTP {(int)resp.StatusCode} {resp.ReasonPhrase}";
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // Keep it simple: DB is already correct, reconciliation/retry could be added later
-            return Ok();
+            // Do not throw: bank is finished; record error and allow retry later
+            tx.MerchantNotifyLastError = ex.Message;
         }
+
+        await _db.SaveChangesAsync(ct);
+        return Ok();
     }
 }

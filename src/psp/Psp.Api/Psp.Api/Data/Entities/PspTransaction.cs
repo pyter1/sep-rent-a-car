@@ -16,4 +16,9 @@ public sealed class PspTransaction
     public string ErrorUrl { get; set; } = default!;
 
     public Guid? BankPaymentId { get; set; }
+
+    public bool MerchantNotified { get; set; } = false;
+    public DateTime? MerchantNotifiedAtUtc { get; set; }
+    public int MerchantNotifyAttempts { get; set; } = 0;
+    public string? MerchantNotifyLastError { get; set; }
 }
