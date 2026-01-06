@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Psp.Api.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -6,11 +8,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<Psp.Api.Storage.TransactionStore>();
+// builder.Services.AddSingleton<Psp.Api.Storage.TransactionStore>();
 builder.Services.AddHttpClient<Psp.Api.Services.BankClient>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Bank:BaseUrl"]!);
 });
+builder.Services.AddDbContext<PspDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+
 
 var app = builder.Build();
 
@@ -19,9 +24,9 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.MapControllers();
+    
 }
-
+app.MapControllers();
 // app.UseHttpsRedirection();
 
 var summaries = new[]

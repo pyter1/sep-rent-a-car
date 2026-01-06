@@ -9,3 +9,4 @@ C:\Users\milin\Desktop\sep-rent-a-car\src\common\Common\obj\Debug\net8.0\Common.
 C:\Users\milin\Desktop\sep-rent-a-car\src\common\Common\obj\Debug\net8.0\refint\Common.dll
 C:\Users\milin\Desktop\sep-rent-a-car\src\common\Common\obj\Debug\net8.0\Common.pdb
 C:\Users\milin\Desktop\sep-rent-a-car\src\common\Common\obj\Debug\net8.0\ref\Common.dll
+C:\Users\milin\Desktop\sep-rent-a-car\src\common\Common\obj\Debug\net8.0\Common.sourcelink.json

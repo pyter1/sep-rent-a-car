@@ -33,3 +33,4 @@ C:\Users\milin\Desktop\sep-rent-a-car\src\webshop\WebShop.Api\WebShop.Api\obj\De
 C:\Users\milin\Desktop\sep-rent-a-car\src\webshop\WebShop.Api\WebShop.Api\obj\Debug\net8.0\ref\WebShop.Api.dll
 C:\Users\milin\Desktop\sep-rent-a-car\src\webshop\WebShop.Api\WebShop.Api\bin\Debug\net8.0\Common.dll
 C:\Users\milin\Desktop\sep-rent-a-car\src\webshop\WebShop.Api\WebShop.Api\bin\Debug\net8.0\Common.pdb
+C:\Users\milin\Desktop\sep-rent-a-car\src\webshop\WebShop.Api\WebShop.Api\obj\Debug\net8.0\WebShop.Api.sourcelink.json

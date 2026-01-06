@@ -1,6 +1,8 @@
-﻿using Common.Contracts;
+﻿using System.Net.Http.Json;
+using Common.Contracts;
 using Microsoft.AspNetCore.Mvc;
-using Psp.Api.Storage;
+using Microsoft.EntityFrameworkCore;
+using Psp.Api.Data;
 
 namespace Psp.Api.Controllers;
 
@@ -8,18 +10,21 @@ namespace Psp.Api.Controllers;
 [Route("api/psp/bank")]
 public sealed class BankNotifyController : ControllerBase
 {
-    private readonly TransactionStore _store;
+    private readonly PspDbContext _db;
     private readonly HttpClient _http = new(); // simple for now; later use IHttpClientFactory
 
-    public BankNotifyController(TransactionStore store)
+    public BankNotifyController(PspDbContext db)
     {
-        _store = store;
+        _db = db;
     }
 
     [HttpPost("notify")]
     public async Task<ActionResult> Notify([FromBody] PspBankNotifyRequest request, CancellationToken ct)
     {
-        if (!_store.TryGet(request.PspTransactionId, out var tx) || tx is null)
+        var tx = await _db.Transactions
+            .FirstOrDefaultAsync(x => x.Id == request.PspTransactionId, ct);
+
+        if (tx is null)
             return NotFound("Unknown PSP transaction.");
 
         // Map Bank status -> PSP transaction status
@@ -31,9 +36,16 @@ public sealed class BankNotifyController : ControllerBase
             _ => TransactionStatus.Error
         };
 
-        _store.SetStatus(request.PspTransactionId, newStatus);
+        // Update DB
+        tx.Status = newStatus;
 
-        // Call WebShop callback URL based on status
+        // Keep bank payment id in DB (if you store it)
+        if (request.BankPaymentId != Guid.Empty)
+            tx.BankPaymentId = request.BankPaymentId;
+
+        await _db.SaveChangesAsync(ct);
+
+        // Select callback URL based on status
         var callbackUrl = newStatus switch
         {
             TransactionStatus.Paid => tx.SuccessUrl,
@@ -43,20 +55,19 @@ public sealed class BankNotifyController : ControllerBase
 
         try
         {
-            // Minimal callback; later you can send more data and add retries.
-            var resp = await _http.PostAsJsonAsync(callbackUrl, new
+            await _http.PostAsJsonAsync(callbackUrl, new
             {
                 pspTransactionId = request.PspTransactionId,
                 bankPaymentId = request.BankPaymentId,
                 status = newStatus.ToString()
             }, ct);
 
-            // Even if callback fails, we keep PSP status updated; later reconciliation handles retries.
             return Ok();
         }
         catch
         {
-            return Ok(); // keep it simple for now
+            // Keep it simple: DB is already correct, reconciliation/retry could be added later
+            return Ok();
         }
     }
 }

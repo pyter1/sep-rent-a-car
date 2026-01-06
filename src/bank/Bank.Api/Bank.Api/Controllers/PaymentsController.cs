@@ -1,8 +1,10 @@
-﻿using Bank.Api.Services;
-using Bank.Api.Storage;
+﻿using Bank.Api.Data;
+using Bank.Api.Data.Entities;
+using Bank.Api.Services;
 using Common.Contracts;
 using Common.Validation;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bank.Api.Controllers;
 
@@ -10,64 +12,83 @@ namespace Bank.Api.Controllers;
 [Route("api/bank/payments")]
 public sealed class PaymentsController : ControllerBase
 {
-    private readonly PaymentSessionStore _store;
+    private readonly BankDbContext _db;
     private readonly PspNotifyClient _psp;
 
     // TTL for "time-limited URL" (tune later)
     private static readonly TimeSpan PaymentTtl = TimeSpan.FromMinutes(5);
 
-    public PaymentsController(PaymentSessionStore store, PspNotifyClient psp)
+    public PaymentsController(BankDbContext db, PspNotifyClient psp)
     {
-        _store = store;
+        _db = db;
         _psp = psp;
     }
 
     [HttpPost("init")]
-    public ActionResult<BankInitResponse> Init([FromBody] BankInitRequest request)
+    public async Task<ActionResult<BankInitResponse>> Init([FromBody] BankInitRequest request, CancellationToken ct)
     {
         if (request.Amount <= 0) return BadRequest("Amount must be > 0.");
         if (string.IsNullOrWhiteSpace(request.Currency)) return BadRequest("Currency is required.");
 
-        var session = _store.Create(request.PspTransactionId, request.Amount, request.Currency, PaymentTtl);
+        var now = DateTime.UtcNow;
 
-        // This is the URL the browser would open (UI comes later); for backend-only it's enough.
-        var paymentUrl = $"http://localhost:7002/payments/{session.PaymentId}";
+        var payment = new BankPayment
+        {
+            Id = Guid.NewGuid(),
+            PspTransactionId = request.PspTransactionId,
+            Amount = request.Amount,
+            Currency = request.Currency.Trim().ToUpperInvariant(),
+            Status = PaymentStatus.Created,
+            Attempted = false,
+            CreatedAtUtc = now,
+            ExpiresAtUtc = now.Add(PaymentTtl)
+        };
 
-        return Ok(new BankInitResponse(session.PaymentId, paymentUrl));
+        _db.Payments.Add(payment);
+        await _db.SaveChangesAsync(ct);
+
+        // URL the browser would open (UI later)
+        var paymentUrl = $"http://localhost:7002/payments/{payment.Id}";
+
+        return Ok(new BankInitResponse(payment.Id, paymentUrl));
     }
 
     [HttpGet("{paymentId:guid}")]
-    public ActionResult<object> GetStatus(Guid paymentId)
+    public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationToken ct)
     {
-        if (!_store.TryGet(paymentId, out var s) || s is null) return NotFound();
+        var s = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
+        if (s is null) return NotFound();
 
-        var now = DateTime.UtcNow;
-        if (s.Status == PaymentStatus.Created && now > s.ExpiresAtUtc)
+        // Expire session if needed
+        if (s.Status == PaymentStatus.Created && DateTime.UtcNow > s.ExpiresAtUtc)
         {
-            s = _store.Update(paymentId, cur => cur with { Status = PaymentStatus.Expired });
+            s.Status = PaymentStatus.Expired;
+            await _db.SaveChangesAsync(ct);
         }
 
         return Ok(new
         {
-            s.PaymentId,
-            s.PspTransactionId,
-            s.Amount,
-            s.Currency,
-            s.Status,
-            s.Attempted,
-            s.ExpiresAtUtc
+            paymentId = s.Id,
+            pspTransactionId = s.PspTransactionId,
+            amount = s.Amount,
+            currency = s.Currency,
+            status = s.Status,
+            attempted = s.Attempted,
+            expiresAtUtc = s.ExpiresAtUtc
         });
     }
 
     [HttpPost("{paymentId:guid}/card/submit")]
     public async Task<ActionResult<object>> SubmitCard(Guid paymentId, [FromBody] CardSubmitRequest request, CancellationToken ct)
     {
-        if (!_store.TryGet(paymentId, out var s) || s is null) return NotFound();
+        var s = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
+        if (s is null) return NotFound();
 
         // Expiry enforcement
         if (s.Status == PaymentStatus.Created && DateTime.UtcNow > s.ExpiresAtUtc)
         {
-            s = _store.Update(paymentId, cur => cur with { Status = PaymentStatus.Expired });
+            s.Status = PaymentStatus.Expired;
+            await _db.SaveChangesAsync(ct);
             return StatusCode(StatusCodes.Status410Gone, new { message = "Payment session expired." });
         }
 
@@ -80,32 +101,49 @@ public sealed class PaymentsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Cvv) || request.Cvv.Length < 3 || request.Cvv.Length > 4 || !request.Cvv.All(char.IsDigit))
             return BadRequest(new { message = "Invalid CVV." });
 
-        // Simulate authorization success (later you can add fail logic)
-        var updated = _store.Update(paymentId, cur => cur with { Attempted = true, Status = PaymentStatus.Paid });
+        // Simulate auth success
+        s.Attempted = true;
+        s.Status = PaymentStatus.Paid;
+        await _db.SaveChangesAsync(ct);
 
         // Notify PSP
-        await _psp.NotifyAsync(new PspBankNotifyRequest(updated.PspTransactionId, updated.PaymentId, updated.Status), ct);
+        try
+        {
+            await _psp.NotifyAsync(new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status), ct);
+        }
+        catch
+        {
+            // keep it simple for now: DB is already correct; retries/reconciliation can be added later
+        }
 
-        return Ok(new { message = "Payment completed.", updated.Status });
+        return Ok(new { message = "Payment completed.", status = s.Status });
     }
 
     [HttpPost("{paymentId:guid}/qr/confirm")]
     public async Task<ActionResult<object>> ConfirmQr(Guid paymentId, CancellationToken ct)
     {
-        if (!_store.TryGet(paymentId, out var s) || s is null) return NotFound();
+        var s = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
+        if (s is null) return NotFound();
 
         if (s.Status == PaymentStatus.Created && DateTime.UtcNow > s.ExpiresAtUtc)
         {
-            s = _store.Update(paymentId, cur => cur with { Status = PaymentStatus.Expired });
+            s.Status = PaymentStatus.Expired;
+            await _db.SaveChangesAsync(ct);
             return StatusCode(StatusCodes.Status410Gone, new { message = "Payment session expired." });
         }
 
         if (s.Attempted) return Conflict(new { message = "Payment already attempted." });
 
-        var updated = _store.Update(paymentId, cur => cur with { Attempted = true, Status = PaymentStatus.Paid });
+        s.Attempted = true;
+        s.Status = PaymentStatus.Paid;
+        await _db.SaveChangesAsync(ct);
 
-        await _psp.NotifyAsync(new PspBankNotifyRequest(updated.PspTransactionId, updated.PaymentId, updated.Status), ct);
+        try
+        {
+            await _psp.NotifyAsync(new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status), ct);
+        }
+        catch { }
 
-        return Ok(new { message = "QR payment confirmed.", updated.Status });
+        return Ok(new { message = "QR payment confirmed.", status = s.Status });
     }
 }
