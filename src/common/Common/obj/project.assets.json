@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\common\\Common\\Common.csproj",
+      "projectUniqueName": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\common\\Common\\Common.csproj",
       "projectName": "Common",
-      "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\common\\Common\\Common.csproj",
+      "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\common\\Common\\Common.csproj",
       "packagesPath": "C:\\Users\\milin\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\common\\Common\\obj\\",
+      "outputPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\common\\Common\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\milin\\AppData\\Roaming\\NuGet\\NuGet.Config"

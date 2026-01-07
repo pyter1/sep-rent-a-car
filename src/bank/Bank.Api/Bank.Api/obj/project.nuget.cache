@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "oOlobHrtsMk=",
+  "dgSpecHash": "5T3JooHzdn8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\bank\\Bank.Api\\Bank.Api\\Bank.Api.csproj",
+  "projectFilePath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\bank\\Bank.Api\\Bank.Api\\Bank.Api.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\milin\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\milin\\.nuget\\packages\\microsoft.aspnetcore.openapi\\8.0.22\\microsoft.aspnetcore.openapi.8.0.22.nupkg.sha512",

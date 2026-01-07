@@ -28,6 +28,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: Host=db;Port=5432;Database=sep_rentacar;Username=sep_user;Password=Sep123
       Bank__BaseUrl: http://bank-api:7002
+      Ui__PublicBaseUrl: http://localhost:4201
     ports:
       - "7001:7001"
 

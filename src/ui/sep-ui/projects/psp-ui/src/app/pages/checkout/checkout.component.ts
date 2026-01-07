@@ -3,18 +3,17 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 
-type Tx = {
+type TxView = {
   id: string;
-  merchantOrderId: string;
   amount: number;
   currency: string;
-  status: number;
-  bankPaymentId?: string;
+  status: string;
+  bankPaymentId?: string | null;
 };
 
-type StartCardResponse = {
+type StartPaymentResponse = {
   bankPaymentId: string;
-  bankPaymentUrl: string;
+  redirectUrl: string;
 };
 
 @Component({
@@ -22,44 +21,45 @@ type StartCardResponse = {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './checkout.component.html',
-  styleUrl: './checkout.component.scss'
 })
 export class CheckoutComponent {
-  txId = '';
-  tx: Tx | null = null;
+  txId!: string;
+  tx: TxView | null = null;
   loading = true;
   paying = false;
   error: string | null = null;
 
-  constructor(private route: ActivatedRoute, private http: HttpClient) {
-    this.txId = this.route.snapshot.paramMap.get('txId') ?? '';
-    this.load();
+  constructor(private route: ActivatedRoute, private http: HttpClient) {}
+
+  ngOnInit() {
+    this.txId = this.route.snapshot.paramMap.get('txId')!;
+    this.loadTx();
   }
 
-  load() {
+  loadTx() {
     this.loading = true;
-    this.error = null;
-
-    this.http.get<Tx>(`/api/psp/transactions/${this.txId}`).subscribe({
-      next: (t) => { this.tx = t; this.loading = false; },
-      error: () => { this.error = 'Transaction not found.'; this.loading = false; }
+    this.http.get<TxView>(`/api/psp/transactions/${this.txId}`).subscribe({
+      next: (tx) => { this.tx = tx; this.loading = false; },
+      error: () => { this.error = 'Failed to load transaction.'; this.loading = false; }
     });
   }
 
-  payByCard() {
-    if (!this.txId) return;
+  startCard() {
+    this.start(`/api/psp/transactions/${this.txId}/start-card`);
+  }
 
+  startQr() {
+    this.start(`/api/psp/transactions/${this.txId}/start-qr`);
+  }
+
+  private start(url: string) {
     this.paying = true;
     this.error = null;
 
-    // If your backend route differs, change ONLY this line:
-    this.http.post<StartCardResponse>(`/api/psp/checkout/${this.txId}/card`, {}).subscribe({
-      next: (res) => {
-        // Redirect browser to bank UI
-        window.location.href = `http://localhost:4202/payments/${res.bankPaymentId}`;
-      },
+    this.http.post<StartPaymentResponse>(url, {}).subscribe({
+      next: (res) => window.location.href = res.redirectUrl,
       error: (err) => {
-        this.error = err?.error?.message ?? 'Unable to start card payment.';
+        this.error = err?.error?.message ?? 'Unable to start payment.';
         this.paying = false;
       }
     });

@@ -2602,11 +2602,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\bank\\Bank.Api\\Bank.Api\\Bank.Api.csproj",
+      "projectUniqueName": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\bank\\Bank.Api\\Bank.Api\\Bank.Api.csproj",
       "projectName": "Bank.Api",
-      "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\bank\\Bank.Api\\Bank.Api\\Bank.Api.csproj",
+      "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\bank\\Bank.Api\\Bank.Api\\Bank.Api.csproj",
       "packagesPath": "C:\\Users\\milin\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\bank\\Bank.Api\\Bank.Api\\obj\\",
+      "outputPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\bank\\Bank.Api\\Bank.Api\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\milin\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -2621,8 +2621,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\common\\Common\\Common.csproj": {
-              "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\common\\Common\\Common.csproj"
+            "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\common\\Common\\Common.csproj": {
+              "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\common\\Common\\Common.csproj"
             }
           }
         }

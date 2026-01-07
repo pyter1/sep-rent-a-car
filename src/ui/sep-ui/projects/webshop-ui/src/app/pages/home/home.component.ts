@@ -60,12 +60,14 @@ export class HomeComponent {
     };
 
     this.http.post<InitResponse>('/api/payments/init', body).subscribe({
-      next: (res) => {
-        const txId = res.transactionId;
+    next: (res) => {
+      console.log('INIT RESPONSE:', res);
+      // debugger;
+      const url = res.redirectUrl ?? `http://localhost:4201/checkout/${res.transactionId}`;
+      window.location.href = url;
+    },
 
-        // Redirect to PSP UI (browser)
-        window.location.href = `http://localhost:4201/checkout/${txId}`;
-      },
+
       error: (err) => {
         this.error = err?.error?.message ?? 'Init failed.';
         this.loadingCarId = null;

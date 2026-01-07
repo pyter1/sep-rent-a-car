@@ -503,11 +503,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\webshop\\WebShop.Api\\WebShop.Api\\WebShop.Api.csproj",
+      "projectUniqueName": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\webshop\\WebShop.Api\\WebShop.Api\\WebShop.Api.csproj",
       "projectName": "WebShop.Api",
-      "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\webshop\\WebShop.Api\\WebShop.Api\\WebShop.Api.csproj",
+      "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\webshop\\WebShop.Api\\WebShop.Api\\WebShop.Api.csproj",
       "packagesPath": "C:\\Users\\milin\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\webshop\\WebShop.Api\\WebShop.Api\\obj\\",
+      "outputPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\webshop\\WebShop.Api\\WebShop.Api\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\milin\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -522,8 +522,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\common\\Common\\Common.csproj": {
-              "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car\\src\\common\\Common\\Common.csproj"
+            "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\common\\Common\\Common.csproj": {
+              "projectPath": "C:\\Users\\milin\\Desktop\\sep-rent-a-car_RESTORED\\src\\common\\Common\\Common.csproj"
             }
           }
         }
