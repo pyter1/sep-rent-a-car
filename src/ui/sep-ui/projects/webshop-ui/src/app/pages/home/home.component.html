@@ -1,0 +1,18 @@
+<div class="page">
+  <h1>Rent-a-car (demo)</h1>
+  <p>Select a car and start payment.</p>
+
+  <div class="error" *ngIf="error">{{ error }}</div>
+
+  <div class="grid">
+    <div class="card" *ngFor="let car of cars">
+      <div class="title">{{ car.name }}</div>
+      <div class="specs">{{ car.specs }}</div>
+      <div class="price">{{ car.priceEur }} EUR / day</div>
+
+      <button (click)="rent(car)" [disabled]="loadingCarId === car.id">
+        {{ loadingCarId === car.id ? 'Starting...' : 'Rent this car' }}
+      </button>
+    </div>
+  </div>
+</div>

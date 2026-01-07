@@ -1,0 +1,14 @@
+<div class="page">
+  <h1>PSP UI (demo)</h1>
+  <p>Paste a PSP transaction id to view its status.</p>
+
+  <div class="card">
+    <label>Transaction ID</label>
+    <input [(ngModel)]="txId" placeholder="e.g. 61423b6d-..." />
+    <button (click)="openTx()">Open transaction</button>
+  </div>
+
+  <div class="hint">
+    Tip: You can also navigate directly to <code>/tx/&lt;id&gt;</code>.
+  </div>
+</div>

@@ -1,0 +1,33 @@
+.page {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.card {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+}
+
+input {
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+}
+
+button {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.hint {
+  margin-top: 16px;
+  color: #555;
+}

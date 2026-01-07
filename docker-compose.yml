@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16
+    container_name: sep_db
+    environment:
+      POSTGRES_DB: sep_rentacar
+      POSTGRES_USER: sep_user
+      POSTGRES_PASSWORD: Sep123
+    ports:
+      - "5432:5432"
+    volumes:
+      - sep_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sep_user -d sep_rentacar"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  psp-api:
+    build:
+      context: .
+      dockerfile: src/psp/Psp.Api/Psp.Api/Dockerfile
+    container_name: psp_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=db;Port=5432;Database=sep_rentacar;Username=sep_user;Password=Sep123
+      Bank__BaseUrl: http://bank-api:7002
+    ports:
+      - "7001:7001"
+
+  bank-api:
+    build:
+      context: .
+      dockerfile: src/bank/Bank.Api/Bank.Api/Dockerfile
+    container_name: bank_api
+    depends_on:
+      db:
+        condition: service_healthy
+      psp-api:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=db;Port=5432;Database=sep_rentacar;Username=sep_user;Password=Sep123
+      Psp__BaseUrl: http://psp-api:7001
+      Ui__PublicBaseUrl: http://localhost:4202
+    ports:
+      - "7002:7002"
+
+  webshop-api:
+    build:
+      context: .
+      dockerfile: src/webshop/WebShop.Api/WebShop.Api/Dockerfile
+    container_name: webshop_api
+    depends_on:
+      psp-api:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Psp__BaseUrl: http://psp-api:7001
+      PublicBaseUrl: http://webshop-api:7003
+    ports:
+      - "7003:7003"
+
+volumes:
+  sep_pgdata:

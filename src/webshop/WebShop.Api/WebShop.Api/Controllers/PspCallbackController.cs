@@ -3,6 +3,7 @@
 namespace WebShop.Api.Controllers;
 
 [ApiController]
+[Route("payment")]
 public sealed class PspCallbackController : ControllerBase
 {
     [HttpPost("/payment/success")]

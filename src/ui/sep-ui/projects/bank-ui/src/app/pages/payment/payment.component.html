@@ -1,0 +1,40 @@
+<div class="page">
+  <h1>Bank Payment</h1>
+
+  <div *ngIf="loading">Loading...</div>
+  <div class="error" *ngIf="error">{{ error }}</div>
+  <div class="ok" *ngIf="doneMessage">{{ doneMessage }}</div>
+
+  <div *ngIf="!loading && p" class="card">
+    <div><b>Amount:</b> {{ p.amount }} {{ p.currency }}</div>
+    <div><b>Status:</b> {{ p.status }}</div>
+    <div><b>Expires:</b> {{ p.expiresAtUtc }}</div>
+
+    <h3>Card details</h3>
+
+    <label>PAN</label>
+    <input [(ngModel)]="form.pan" />
+
+    <div class="row">
+      <div>
+        <label>Expiry month</label>
+        <input type="number" [(ngModel)]="form.expiryMonth" />
+      </div>
+      <div>
+        <label>Expiry year</label>
+        <input type="number" [(ngModel)]="form.expiryYear" />
+      </div>
+      <div>
+        <label>CVV</label>
+        <input [(ngModel)]="form.cvv" />
+      </div>
+    </div>
+
+    <label>Cardholder</label>
+    <input [(ngModel)]="form.cardholderName" />
+
+    <button (click)="submit()" [disabled]="submitting">
+      {{ submitting ? 'Processing...' : 'Pay' }}
+    </button>
+  </div>
+</div>

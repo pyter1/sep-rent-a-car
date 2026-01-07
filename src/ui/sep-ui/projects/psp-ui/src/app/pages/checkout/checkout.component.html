@@ -1,0 +1,16 @@
+<div class="page">
+  <h1>PSP Checkout</h1>
+
+  <div *ngIf="loading">Loading...</div>
+  <div class="error" *ngIf="error">{{ error }}</div>
+
+  <div *ngIf="!loading && tx" class="card">
+    <div><b>Order:</b> {{ tx.merchantOrderId }}</div>
+    <div><b>Amount:</b> {{ tx.amount }} {{ tx.currency }}</div>
+    <div><b>Status:</b> {{ tx.status }}</div>
+
+    <button (click)="payByCard()" [disabled]="paying">
+      {{ paying ? 'Redirecting...' : 'Pay by card' }}
+    </button>
+  </div>
+</div>

@@ -48,6 +48,9 @@ namespace Bank.Api.Migrations
                     b.Property<bool>("NotifiedPsp")
                         .HasColumnType("boolean");
 
+                    b.Property<int?>("NotifiedPspStatus")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("PspTransactionId")
                         .HasColumnType("uuid");
 

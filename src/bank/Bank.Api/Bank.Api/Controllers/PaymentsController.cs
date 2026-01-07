@@ -17,11 +17,13 @@ public sealed class PaymentsController : ControllerBase
 
     // TTL for "time-limited URL" (tune later)
     private static readonly TimeSpan PaymentTtl = TimeSpan.FromMinutes(5);
+    private readonly IConfiguration _config;
 
-    public PaymentsController(BankDbContext db, PspNotifyClient psp)
+    public PaymentsController(BankDbContext db, PspNotifyClient psp, IConfiguration config)
     {
         _db = db;
         _psp = psp;
+        _config = config;
     }
 
     [HttpPost("init")]
@@ -48,7 +50,15 @@ public sealed class PaymentsController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         // URL the browser would open (UI later)
-        var paymentUrl = $"http://localhost:7002/payments/{payment.Id}";
+        // var paymentUrl = $"http://localhost:7002/payments/{payment.Id}";
+        // var uiBase = HttpContext.RequestServices
+        //     .GetRequiredService<IConfiguration>()["Ui:PublicBaseUrl"]
+        //     ?? "http://localhost:4202";
+
+        // var paymentUrl = $"{uiBase}/payments/{payment.Id}";
+        var uiBase = _config["Ui:PublicBaseUrl"] ?? "http://localhost:4202";
+        var paymentUrl = $"{uiBase}/payments/{payment.Id}";
+
 
         return Ok(new BankInitResponse(payment.Id, paymentUrl));
     }
@@ -69,7 +79,8 @@ public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationTo
     }
 
     // 2) Side effect: notify PSP exactly once
-    if (p.Status == PaymentStatus.Expired && !p.NotifiedPsp)
+// Notify PSP for Expired exactly once (per-status idempotency)
+    if (p.Status == PaymentStatus.Expired && p.NotifiedPspStatus != PaymentStatus.Expired)
     {
         try
         {
@@ -78,11 +89,12 @@ public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationTo
                 ct
             );
 
-            p.NotifiedPsp = true; // set only on success
+            // Mark which status was successfully notified
+            p.NotifiedPspStatus = PaymentStatus.Expired;
         }
         catch
         {
-            // PSP is probably down; keep NotifiedPsp=false so you can retry later
+            // PSP is down; keep NotifiedPspStatus unchanged so you can retry later
         }
     }
 
@@ -97,7 +109,8 @@ public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationTo
         status = p.Status,
         attempted = p.Attempted,
         expiresAtUtc = p.ExpiresAtUtc,
-        notifiedPsp = p.NotifiedPsp
+        notifiedPspStatus = p.NotifiedPspStatus
+
     });
 }
 
@@ -131,16 +144,25 @@ public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationTo
         await _db.SaveChangesAsync(ct);
 
         // Notify PSP
+    // Notify PSP for Paid exactly once (per-status idempotency)
+    if (s.NotifiedPspStatus != PaymentStatus.Paid)
+    {
         try
         {
-            await _psp.NotifyAsync(new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status), ct);
-            s.NotifiedPsp = true;
+            await _psp.NotifyAsync(
+                new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status),
+                ct
+            );
+
+            s.NotifiedPspStatus = PaymentStatus.Paid;
             await _db.SaveChangesAsync(ct);
         }
         catch
         {
-            // keep it simple for now: DB is already correct; retries/reconciliation can be added later
+            // PSP down; keep NotifiedPspStatus unchanged so you can retry later
         }
+    }
+
 
         return Ok(new { message = "Payment completed.", status = s.Status });
     }
@@ -164,13 +186,17 @@ public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationTo
         s.Status = PaymentStatus.Paid;
         await _db.SaveChangesAsync(ct);
 
+    if (s.NotifiedPspStatus != PaymentStatus.Paid)
+    {
         try
         {
             await _psp.NotifyAsync(new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status), ct);
-            s.NotifiedPsp = true;
+            s.NotifiedPspStatus = PaymentStatus.Paid;
             await _db.SaveChangesAsync(ct);
         }
         catch { }
+    }
+
 
         return Ok(new { message = "QR payment confirmed.", status = s.Status });
     }

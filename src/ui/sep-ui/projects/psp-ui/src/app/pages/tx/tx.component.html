@@ -1,0 +1,34 @@
+<div *ngIf="!loading && tx as t" class="grid">
+  <div class="card">
+    <h3>Core</h3>
+    <div class="row"><span>Merchant order:</span><b>{{ t.merchantOrderId }}</b></div>
+    <div class="row"><span>Amount:</span><b>{{ t.amount }} {{ t.currency }}</b></div>
+    <div class="row"><span>Status (int):</span><b>{{ t.status }}</b></div>
+    <div class="row"><span>Created:</span><b>{{ t.createdAtUtc }}</b></div>
+  </div>
+
+  <div class="card">
+    <h3>Bank Link</h3>
+    <div class="row"><span>Bank payment id:</span><b>{{ t.bankPaymentId || '—' }}</b></div>
+    <div class="hint">
+      If bankPaymentId is present, PSP init → Bank init mapping is correct.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Merchant Callback</h3>
+    <div class="row"><span>Notified:</span><b>{{ t.merchantNotified ?? false }}</b></div>
+    <div class="row"><span>Notified at:</span><b>{{ t.merchantNotifiedAtUtc || '—' }}</b></div>
+    <div class="row"><span>Attempts:</span><b>{{ t.merchantNotifyAttempts ?? 0 }}</b></div>
+    <div class="row"><span>Last error:</span><b>{{ t.merchantNotifyLastError || '—' }}</b></div>
+  </div>
+
+  <div class="card">
+    <h3>URLs</h3>
+    <div class="mono">
+      <div><b>successUrl</b>: {{ t.successUrl }}</div>
+      <div><b>failUrl</b>: {{ t.failUrl }}</div>
+      <div><b>errorUrl</b>: {{ t.errorUrl }}</div>
+    </div>
+  </div>
+</div>
