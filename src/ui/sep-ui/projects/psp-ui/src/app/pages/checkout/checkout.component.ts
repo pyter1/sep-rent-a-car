@@ -2,12 +2,13 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { finalize } from 'rxjs/operators';
 
 type TxView = {
   id: string;
   amount: number;
   currency: string;
-  status: string;
+  status: number;
   bankPaymentId?: string | null;
 };
 
@@ -32,17 +33,33 @@ export class CheckoutComponent {
   constructor(private route: ActivatedRoute, private http: HttpClient) {}
 
   ngOnInit() {
-    this.txId = this.route.snapshot.paramMap.get('txId')!;
-    this.loadTx();
+    const p = this.route.snapshot.paramMap.get('txId');
+    if (!p) {
+      this.error = 'Missing txId in route. Expected /checkout/:txId';
+      this.loading = false;
+      return;
+    }
+    this.txId = p;
+    this.loadTx(true); // first load only
   }
 
-  loadTx() {
-    this.loading = true;
-    this.http.get<TxView>(`/api/psp/transactions/${this.txId}`).subscribe({
-      next: (tx) => { this.tx = tx; this.loading = false; },
-      error: () => { this.error = 'Failed to load transaction.'; this.loading = false; }
-    });
+
+  loadTx(firstLoad = false) {
+    if (firstLoad) this.loading = true;
+    this.error = null;
+
+    this.http
+      .get<TxView>(`/api/psp/transactions/${this.txId}`)
+      .pipe(finalize(() => { if (firstLoad) this.loading = false; }))
+      .subscribe({
+        next: (tx) => { this.tx = tx; },
+        error: (err) => {
+          this.error = err?.error?.message ?? 'Failed to load transaction.';
+          if (firstLoad) this.loading = false;
+        }
+      });
   }
+
 
   startCard() {
     this.start(`/api/psp/transactions/${this.txId}/start-card`);

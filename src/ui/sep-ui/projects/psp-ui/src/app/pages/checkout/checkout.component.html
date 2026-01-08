@@ -1,13 +1,21 @@
-<div *ngIf="loading">Loading…</div>
+<!-- Show Loading only before first tx is loaded -->
+<div *ngIf="loading && !tx">Loading...</div>
 
-<div *ngIf="!loading && tx">
+<!-- Always show error if present -->
+<div *ngIf="error" style="margin-top: 12px; color: #b00020;">
+  {{ error }}
+</div>
+
+<!-- Once tx exists, keep showing it even if we refresh in background -->
+<div *ngIf="tx">
   <h2>PSP Checkout</h2>
   <p>Amount: {{ tx.amount }} {{ tx.currency }}</p>
 
   <button (click)="startCard()" [disabled]="paying">Pay by card</button>
   <button (click)="startQr()" [disabled]="paying" style="margin-left: 8px;">Pay by QR</button>
 
-  <div *ngIf="error" style="margin-top: 12px; color: #b00020;">
-    {{ error }}
+  <!-- Optional: show that we're refreshing -->
+  <div *ngIf="loading" style="margin-top: 8px; opacity: 0.7;">
+    Refreshing...
   </div>
 </div>
