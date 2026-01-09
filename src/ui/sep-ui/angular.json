@@ -129,7 +129,8 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "proxyConfig": "projects/psp-ui/proxy.conf.json"
+              "proxyConfig": "projects/psp-ui/proxy.conf.json",
+              "port": 4201
           },
           "configurations": {
             "production": { "buildTarget": "psp-ui:build:production" },

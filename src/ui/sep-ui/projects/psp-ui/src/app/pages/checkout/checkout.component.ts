@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { finalize } from 'rxjs/operators';
+import { ChangeDetectorRef } from '@angular/core';
 
 type TxView = {
   id: string;
@@ -30,36 +30,37 @@ export class CheckoutComponent {
   paying = false;
   error: string | null = null;
 
-  constructor(private route: ActivatedRoute, private http: HttpClient) {}
+  constructor(private route: ActivatedRoute, private http: HttpClient,  private cdr: ChangeDetectorRef) {}
 
   ngOnInit() {
     const p = this.route.snapshot.paramMap.get('txId');
     if (!p) {
       this.error = 'Missing txId in route. Expected /checkout/:txId';
       this.loading = false;
+      this.cdr.detectChanges();
       return;
     }
     this.txId = p;
-    this.loadTx(true); // first load only
+    this.loadTx(true);
   }
-
 
   loadTx(firstLoad = false) {
     if (firstLoad) this.loading = true;
     this.error = null;
 
-    this.http
-      .get<TxView>(`/api/psp/transactions/${this.txId}`)
-      .pipe(finalize(() => { if (firstLoad) this.loading = false; }))
-      .subscribe({
-        next: (tx) => { this.tx = tx; },
-        error: (err) => {
-          this.error = err?.error?.message ?? 'Failed to load transaction.';
-          if (firstLoad) this.loading = false;
-        }
-      });
+    this.http.get<TxView>(`/api/psp/transactions/${this.txId}`).subscribe({
+      next: (tx) => {
+        this.tx = tx;
+        if (firstLoad) this.loading = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.error = err?.error?.message ?? 'Failed to load transaction.';
+        if (firstLoad) this.loading = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
-
 
   startCard() {
     this.start(`/api/psp/transactions/${this.txId}/start-card`);
@@ -74,8 +75,12 @@ export class CheckoutComponent {
     this.error = null;
 
     this.http.post<StartPaymentResponse>(url, {}).subscribe({
-      next: (res) => window.location.href = res.redirectUrl,
+      next: (res) => {
+        console.log('[Checkout] start ok', res);
+        window.location.href = res.redirectUrl;
+      },
       error: (err) => {
+        console.log('[Checkout] start error', err);
         this.error = err?.error?.message ?? 'Unable to start payment.';
         this.paying = false;
       }
