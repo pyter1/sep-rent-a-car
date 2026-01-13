@@ -3,5 +3,7 @@
 public sealed record PspBankNotifyRequest(
     Guid PspTransactionId,
     Guid BankPaymentId,
-    PaymentStatus Status
+    PaymentStatus Status,
+    string? Stan = null,
+    DateTime? AcquirerTimestampUtc = null
 );

@@ -7,12 +7,15 @@ public sealed class PaymentSessionStore
 {
     private readonly ConcurrentDictionary<Guid, PaymentSession> _sessions = new();
 
-    public PaymentSession Create(Guid pspTxId, decimal amount, string currency, TimeSpan ttl)
+    public PaymentSession Create(string pspMerchantId, string stan, DateTime pspTimestampUtc, Guid pspTxId, decimal amount, string currency, TimeSpan ttl)
     {
         var paymentId = Guid.NewGuid();
         var s = new PaymentSession(
             PaymentId: paymentId,
             PspTransactionId: pspTxId,
+            PspMerchantId: pspMerchantId,
+            Stan: stan,
+            PspTimestampUtc: pspTimestampUtc,
             Amount: amount,
             Currency: currency,
             Status: PaymentStatus.Created,
@@ -24,14 +27,14 @@ public sealed class PaymentSessionStore
         return s;
     }
 
-    public bool TryGet(Guid paymentId, out PaymentSession? session) => _sessions.TryGetValue(paymentId, out session);
+    public bool TryGet(Guid paymentId, out PaymentSession session) => _sessions.TryGetValue(paymentId, out session);
 
     public PaymentSession Update(Guid paymentId, Func<PaymentSession, PaymentSession> update)
     {
         while (true)
         {
-            if (!_sessions.TryGetValue(paymentId, out var current) || current is null)
-                throw new KeyNotFoundException("Payment session not found.");
+            if (!_sessions.TryGetValue(paymentId, out var current))
+                throw new KeyNotFoundException($"Payment {paymentId} not found.");
 
             var next = update(current);
             if (_sessions.TryUpdate(paymentId, next, current)) return next;
@@ -42,6 +45,9 @@ public sealed class PaymentSessionStore
 public sealed record PaymentSession(
     Guid PaymentId,
     Guid PspTransactionId,
+    string PspMerchantId,
+    string Stan,
+    DateTime PspTimestampUtc,
     decimal Amount,
     string Currency,
     PaymentStatus Status,

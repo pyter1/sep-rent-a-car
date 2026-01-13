@@ -1,8 +1,26 @@
-﻿**/bin/
+﻿# .NET build output
+**/bin/
 **/obj/
+
+# Visual Studio / Rider / VS Code
 .vs/
 **/.vs/
+.idea/
+*.user
+*.suo
+
+# Node / Angular
 **/node_modules/
+**/dist/
+**/.angular/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Secrets
 .env
 **/.env
-**/appsettings.Development.json

@@ -51,12 +51,7 @@ export class HomeComponent {
     const body: any = {
       merchantOrderId: `order-${Date.now()}`,
       amount: car.priceEur,
-      currency: 'EUR',
-
-      // These are server-to-server callbacks; your PSP will POST to these
-      successUrl: 'http://webshop-api:7003/payment/success',
-      failUrl: 'http://webshop-api:7003/payment/fail',
-      errorUrl: 'http://webshop-api:7003/payment/error'
+      currency: 'EUR'
     };
 
     this.http.post<InitResponse>('/api/payments/init', body).subscribe({

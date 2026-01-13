@@ -28,13 +28,17 @@ public sealed class BankNotifyController : ControllerBase
         // Always persist BankPaymentId (helpful for reconciliation/debugging)
         tx.BankPaymentId = request.BankPaymentId;
 
+        // If bank returned trace fields, store them (best effort)
+        if (!string.IsNullOrWhiteSpace(request.Stan))
+            tx.Stan ??= request.Stan;
+
         // Map Bank status -> PSP status
         var newStatus = request.Status switch
         {
-            PaymentStatus.Paid    => TransactionStatus.Paid,
-            PaymentStatus.Failed  => TransactionStatus.Failed,
+            PaymentStatus.Paid => TransactionStatus.Paid,
+            PaymentStatus.Failed => TransactionStatus.Failed,
             PaymentStatus.Expired => TransactionStatus.Failed,
-            _                     => TransactionStatus.Error
+            _ => TransactionStatus.Error
         };
 
         tx.Status = newStatus;
@@ -46,11 +50,11 @@ public sealed class BankNotifyController : ControllerBase
             return Ok();
         }
 
-        var callbackUrl = newStatus switch
+        var callbackUrl = tx.Status switch
         {
-            TransactionStatus.Paid   => tx.SuccessUrl,
+            TransactionStatus.Paid => tx.SuccessUrl,
             TransactionStatus.Failed => tx.FailUrl,
-            _                        => tx.ErrorUrl
+            _ => tx.ErrorUrl
         };
 
         tx.MerchantNotifyAttempts += 1;
@@ -62,7 +66,10 @@ public sealed class BankNotifyController : ControllerBase
             var resp = await client.PostAsJsonAsync(callbackUrl, new
             {
                 pspTransactionId = tx.Id,
+                merchantId = tx.MerchantId,
+                merchantOrderId = tx.MerchantOrderId,
                 bankPaymentId = tx.BankPaymentId,
+                stan = tx.Stan,
                 status = tx.Status.ToString()
             }, ct);
 

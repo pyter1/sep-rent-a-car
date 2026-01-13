@@ -19,12 +19,23 @@ public sealed class MerchantRetryController : ControllerBase
     }
 
     [HttpPost("{id:guid}/notify-merchant")]
-    public async Task<ActionResult> Retry(Guid id, CancellationToken ct)
+    public async Task<IActionResult> NotifyMerchant(Guid id, CancellationToken ct)
     {
         var tx = await _db.Transactions.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (tx is null) return NotFound();
 
-        if (tx.MerchantNotified) return Ok(new { message = "Already notified." });
+        if (tx.MerchantNotified)
+        {
+            return Ok(new
+            {
+                message = "Merchant already notified.",
+                tx.Id,
+                tx.Status,
+                tx.MerchantNotified,
+                tx.MerchantNotifyAttempts,
+                tx.MerchantNotifyLastError
+            });
+        }
 
         var callbackUrl = tx.Status switch
         {
@@ -35,13 +46,17 @@ public sealed class MerchantRetryController : ControllerBase
 
         tx.MerchantNotifyAttempts += 1;
 
+        var client = _httpFactory.CreateClient("MerchantCallback");
+
         try
         {
-            var client = _httpFactory.CreateClient();
             var resp = await client.PostAsJsonAsync(callbackUrl, new
             {
                 pspTransactionId = tx.Id,
+                merchantId = tx.MerchantId,
+                merchantOrderId = tx.MerchantOrderId,
                 bankPaymentId = tx.BankPaymentId,
+                stan = tx.Stan,
                 status = tx.Status.ToString()
             }, ct);
 

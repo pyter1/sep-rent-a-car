@@ -29,15 +29,45 @@ public sealed class PaymentsController : ControllerBase
     [HttpPost("init")]
     public async Task<ActionResult<BankInitResponse>> Init([FromBody] BankInitRequest request, CancellationToken ct)
     {
+        // Table 2 validation
+        if (string.IsNullOrWhiteSpace(request.MerchantId)) return BadRequest("MerchantId is required.");
         if (request.Amount <= 0) return BadRequest("Amount must be > 0.");
         if (string.IsNullOrWhiteSpace(request.Currency)) return BadRequest("Currency is required.");
+        if (string.IsNullOrWhiteSpace(request.Stan)) return BadRequest("Stan is required.");
+        if (request.PspTimestampUtc == default) return BadRequest("PspTimestampUtc is required.");
+
+        // Validate that the caller is the PSP instance we trust (pre-shared merchant id)
+        var expectedPspMerchantId = _config["Psp:MerchantId"] ?? "PSP_ACQUIRER_MERCHANT_ID";
+        if (!string.Equals(request.MerchantId.Trim(), expectedPspMerchantId, StringComparison.Ordinal))
+            return Unauthorized(new { message = "Invalid PSP merchant identity for acquirer bank." });
 
         var now = DateTime.UtcNow;
+
+        // Idempotency: if PSP retries because it didn't receive our response,
+        // return the existing PAYMENT_ID/PAYMENT_URL for the same (merchantId, stan, pspTimestamp).
+        var existing = await _db.Payments.AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.PspMerchantId == expectedPspMerchantId &&
+                x.Stan == request.Stan &&
+                x.PspTimestampUtc == DateTime.SpecifyKind(request.PspTimestampUtc, DateTimeKind.Utc),
+                ct);
+
+        if (existing is not null)
+        {
+            var uiBaseExisting = _config["Ui:PublicBaseUrl"] ?? "http://localhost:4202";
+            var paymentUrlExisting = $"{uiBaseExisting}/payments/{existing.Id}";
+            return Ok(new BankInitResponse(existing.Id, paymentUrlExisting));
+        }
 
         var payment = new BankPayment
         {
             Id = Guid.NewGuid(),
             PspTransactionId = request.PspTransactionId,
+
+            PspMerchantId = expectedPspMerchantId,
+            Stan = request.Stan.Trim(),
+            PspTimestampUtc = DateTime.SpecifyKind(request.PspTimestampUtc, DateTimeKind.Utc),
+
             Amount = request.Amount,
             Currency = request.Currency.Trim().ToUpperInvariant(),
             Status = PaymentStatus.Created,
@@ -49,154 +79,195 @@ public sealed class PaymentsController : ControllerBase
         _db.Payments.Add(payment);
         await _db.SaveChangesAsync(ct);
 
-        // URL the browser would open (UI later)
-        // var paymentUrl = $"http://localhost:7002/payments/{payment.Id}";
-        // var uiBase = HttpContext.RequestServices
-        //     .GetRequiredService<IConfiguration>()["Ui:PublicBaseUrl"]
-        //     ?? "http://localhost:4202";
-
-        // var paymentUrl = $"{uiBase}/payments/{payment.Id}";
         var uiBase = _config["Ui:PublicBaseUrl"] ?? "http://localhost:4202";
         var paymentUrl = $"{uiBase}/payments/{payment.Id}";
-
 
         return Ok(new BankInitResponse(payment.Id, paymentUrl));
     }
 
-[HttpGet("{paymentId:guid}")]
-public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationToken ct)
-{
-    var p = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
-    if (p is null) return NotFound();
-
-    var now = DateTime.UtcNow;
-
-    // 1) Transition: Created -> Expired
-    if (p.Status == PaymentStatus.Created && now > p.ExpiresAtUtc)
+    // Spec support: lookup by (MERCHANT_ID + STAN + PSP_TIMESTAMP)
+    // Useful when PSP didn't receive init response and does not have PAYMENT_ID.
+    [HttpGet("by-trace")]
+    public async Task<ActionResult<BankInitResponse>> GetByTrace(
+        [FromQuery] string merchantId,
+        [FromQuery] string stan,
+        [FromQuery] DateTime pspTimestampUtc,
+        CancellationToken ct)
     {
-        p.Status = PaymentStatus.Expired;
-        // Attempted remains false
+        if (string.IsNullOrWhiteSpace(merchantId)) return BadRequest("merchantId is required.");
+        if (string.IsNullOrWhiteSpace(stan)) return BadRequest("stan is required.");
+        if (pspTimestampUtc == default) return BadRequest("pspTimestampUtc is required.");
+
+        var expectedPspMerchantId = _config["Psp:MerchantId"] ?? "PSP_ACQUIRER_MERCHANT_ID";
+        if (!string.Equals(merchantId.Trim(), expectedPspMerchantId, StringComparison.Ordinal))
+            return Unauthorized(new { message = "Invalid PSP merchant identity for acquirer bank." });
+
+        var ts = DateTime.SpecifyKind(pspTimestampUtc, DateTimeKind.Utc);
+
+        var p = await _db.Payments.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.PspMerchantId == expectedPspMerchantId &&
+            x.Stan == stan &&
+            x.PspTimestampUtc == ts, ct);
+
+        if (p is null) return NotFound();
+
+        var uiBase = _config["Ui:PublicBaseUrl"] ?? "http://localhost:4202";
+        var paymentUrl = $"{uiBase}/payments/{p.Id}";
+        return Ok(new BankInitResponse(p.Id, paymentUrl));
     }
 
-    // 2) Side effect: notify PSP exactly once
-// Notify PSP for Expired exactly once (per-status idempotency)
-    if (p.Status == PaymentStatus.Expired && p.NotifiedPspStatus != PaymentStatus.Expired)
+    [HttpGet("{paymentId:guid}")]
+    public async Task<ActionResult<object>> GetStatus(Guid paymentId, CancellationToken ct)
     {
-        try
-        {
-            await _psp.NotifyAsync(
-                new PspBankNotifyRequest(p.PspTransactionId, p.Id, p.Status),
-                ct
-            );
+        var p = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
+        if (p is null) return NotFound();
 
-            // Mark which status was successfully notified
-            p.NotifiedPspStatus = PaymentStatus.Expired;
-        }
-        catch
+        var now = DateTime.UtcNow;
+
+        // 1) Transition: Created -> Expired
+        if (p.Status == PaymentStatus.Created && now > p.ExpiresAtUtc)
         {
-            // PSP is down; keep NotifiedPspStatus unchanged so you can retry later
+            p.Status = PaymentStatus.Expired;
+            // Attempted remains false
         }
+
+        // 2) If status changed to final and PSP hasn't been notified, try notify (best effort)
+        if (p.Status is PaymentStatus.Paid or PaymentStatus.Failed or PaymentStatus.Expired)
+        {
+            if (p.NotifiedPspStatus != p.Status)
+            {
+                try
+                {
+                    await _psp.NotifyAsync(new PspBankNotifyRequest(
+                        PspTransactionId: p.PspTransactionId,
+                        BankPaymentId: p.Id,
+                        Status: p.Status,
+                        Stan: p.Stan,
+                        AcquirerTimestampUtc: DateTime.UtcNow
+                    ), ct);
+
+                    p.NotifiedPspStatus = p.Status;
+                }
+                catch
+                {
+                    // swallow; PSP can retry later
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new
+        {
+            paymentId = p.Id,
+            pspTransactionId = p.PspTransactionId,
+            amount = p.Amount,
+            currency = p.Currency,
+            status = p.Status,
+            attempted = p.Attempted,
+            expiresAtUtc = p.ExpiresAtUtc,
+            notifiedPspStatus = p.NotifiedPspStatus,
+
+            // Table 2 trace (for debugging/reconciliation)
+            pspMerchantId = p.PspMerchantId,
+            stan = p.Stan,
+            pspTimestampUtc = p.PspTimestampUtc
+        });
     }
-
-    await _db.SaveChangesAsync(ct);
-
-    return Ok(new
-    {
-        paymentId = p.Id,
-        pspTransactionId = p.PspTransactionId,
-        amount = p.Amount,
-        currency = p.Currency,
-        status = p.Status,
-        attempted = p.Attempted,
-        expiresAtUtc = p.ExpiresAtUtc,
-        notifiedPspStatus = p.NotifiedPspStatus
-
-    });
-}
-
 
     [HttpPost("{paymentId:guid}/card/submit")]
     public async Task<ActionResult<object>> SubmitCard(Guid paymentId, [FromBody] CardSubmitRequest request, CancellationToken ct)
     {
-        var s = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
-        if (s is null) return NotFound();
+        var p = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
+        if (p is null) return NotFound();
 
-        // Expiry enforcement
-        if (s.Status == PaymentStatus.Created && DateTime.UtcNow > s.ExpiresAtUtc)
+        // One-time attempt guard (spec: one-time, time-limited URL)
+        if (p.Attempted) return Conflict(new { message = "Payment session already used (one-time URL)." });
+
+        // TTL guard
+        if (DateTime.UtcNow > p.ExpiresAtUtc)
         {
-            s.Status = PaymentStatus.Expired;
+            p.Status = PaymentStatus.Expired;
             await _db.SaveChangesAsync(ct);
-            return StatusCode(StatusCodes.Status410Gone, new { message = "Payment session expired." });
+            return BadRequest(new { message = "Payment session expired." });
         }
-
-        // One-time submit enforcement
-        if (s.Attempted) return Conflict(new { message = "Payment already attempted." });
 
         // Validate input (PCI: never store CVV; only validate)
         if (!Luhn.IsValid(request.Pan)) return BadRequest(new { message = "Invalid PAN (Luhn failed)." });
-        if (!ExpiryValidator.IsValidNotExpired(request.ExpiryMonth, request.ExpiryYear)) return BadRequest(new { message = "Invalid/expired card date." });
-        if (string.IsNullOrWhiteSpace(request.Cvv) || request.Cvv.Length < 3 || request.Cvv.Length > 4 || !request.Cvv.All(char.IsDigit))
+
+        if (!ExpiryValidator.IsValidNotExpired(request.ExpiryMonth, request.ExpiryYear))
+            return BadRequest(new { message = "Invalid/expired card date." });
+
+        if (string.IsNullOrWhiteSpace(request.Cvv)
+            || request.Cvv.Length < 3
+            || request.Cvv.Length > 4
+            || !request.Cvv.All(char.IsDigit))
             return BadRequest(new { message = "Invalid CVV." });
 
-        // Simulate auth success
-        s.Attempted = true;
-        s.Status = PaymentStatus.Paid;
+        // Mark attempt and simulate success/failure
+        p.Attempted = true;
+        p.Status = PaymentStatus.Paid; // change to Failed based on test conditions if needed
+
         await _db.SaveChangesAsync(ct);
 
-        // Notify PSP
-    // Notify PSP for Paid exactly once (per-status idempotency)
-    if (s.NotifiedPspStatus != PaymentStatus.Paid)
-    {
+        // Notify PSP (best effort)
         try
         {
-            await _psp.NotifyAsync(
-                new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status),
-                ct
-            );
+            await _psp.NotifyAsync(new PspBankNotifyRequest(
+                PspTransactionId: p.PspTransactionId,
+                BankPaymentId: p.Id,
+                Status: p.Status,
+                Stan: p.Stan,
+                AcquirerTimestampUtc: DateTime.UtcNow
+            ), ct);
 
-            s.NotifiedPspStatus = PaymentStatus.Paid;
+            p.NotifiedPspStatus = p.Status;
             await _db.SaveChangesAsync(ct);
         }
         catch
         {
-            // PSP down; keep NotifiedPspStatus unchanged so you can retry later
+            // swallow; PSP can retry later
         }
+
+        return Ok(new { message = "Card submitted.", status = p.Status });
     }
 
-
-        return Ok(new { message = "Payment completed.", status = s.Status });
-    }
-
+    // Placeholder QR confirmation endpoint (KT2: replace with real QR scanning/IPS flow)
     [HttpPost("{paymentId:guid}/qr/confirm")]
     public async Task<ActionResult<object>> ConfirmQr(Guid paymentId, CancellationToken ct)
     {
         var s = await _db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId, ct);
         if (s is null) return NotFound();
+        if (s.Attempted) return Conflict(new { message = "Payment session already used." });
 
-        if (s.Status == PaymentStatus.Created && DateTime.UtcNow > s.ExpiresAtUtc)
+        if (DateTime.UtcNow > s.ExpiresAtUtc)
         {
             s.Status = PaymentStatus.Expired;
             await _db.SaveChangesAsync(ct);
-            return StatusCode(StatusCodes.Status410Gone, new { message = "Payment session expired." });
+            return BadRequest(new { message = "Payment session expired." });
         }
-
-        if (s.Attempted) return Conflict(new { message = "Payment already attempted." });
 
         s.Attempted = true;
         s.Status = PaymentStatus.Paid;
         await _db.SaveChangesAsync(ct);
 
-    if (s.NotifiedPspStatus != PaymentStatus.Paid)
-    {
-        try
+        if (s.NotifiedPspStatus != s.Status)
         {
-            await _psp.NotifyAsync(new PspBankNotifyRequest(s.PspTransactionId, s.Id, s.Status), ct);
-            s.NotifiedPspStatus = PaymentStatus.Paid;
-            await _db.SaveChangesAsync(ct);
-        }
-        catch { }
-    }
+            try
+            {
+                await _psp.NotifyAsync(new PspBankNotifyRequest(
+                    PspTransactionId: s.PspTransactionId,
+                    BankPaymentId: s.Id,
+                    Status: s.Status,
+                    Stan: s.Stan,
+                    AcquirerTimestampUtc: DateTime.UtcNow
+                ), ct);
 
+                s.NotifiedPspStatus = s.Status;
+                await _db.SaveChangesAsync(ct);
+            }
+            catch { }
+        }
 
         return Ok(new { message = "QR payment confirmed.", status = s.Status });
     }

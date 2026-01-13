@@ -12,7 +12,9 @@ public sealed class TransactionStore
         var id = Guid.NewGuid();
         var record = new TransactionRecord(
             TransactionId: id,
+            MerchantId: req.MerchantId,
             MerchantOrderId: req.MerchantOrderId,
+            MerchantTimestampUtc: req.MerchantTimestampUtc,
             Amount: req.Amount,
             Currency: req.Currency,
             Status: TransactionStatus.Created,
@@ -20,37 +22,35 @@ public sealed class TransactionStore
             SuccessUrl: req.SuccessUrl,
             FailUrl: req.FailUrl,
             ErrorUrl: req.ErrorUrl,
-            BankPaymentId: null
+            BankPaymentId: null,
+            Stan: null,
+            PspTimestampUtc: null
         );
 
         _tx[id] = record;
         return record;
     }
 
-    public bool TryGet(Guid id, out TransactionRecord? record) => _tx.TryGetValue(id, out record);
+    public bool TryGet(Guid id, out TransactionRecord record) => _tx.TryGetValue(id, out record);
 
-    public TransactionRecord SetBankPayment(Guid txId, Guid bankPaymentId)
-        => Update(txId, cur => cur with { BankPaymentId = bankPaymentId });
-
-    public TransactionRecord SetStatus(Guid txId, TransactionStatus status)
-        => Update(txId, cur => cur with { Status = status });
-
-    private TransactionRecord Update(Guid txId, Func<TransactionRecord, TransactionRecord> update)
+    public TransactionRecord Update(Guid id, Func<TransactionRecord, TransactionRecord> update)
     {
         while (true)
         {
-            if (!_tx.TryGetValue(txId, out var current) || current is null)
-                throw new KeyNotFoundException("Transaction not found.");
+            if (!_tx.TryGetValue(id, out var current))
+                throw new KeyNotFoundException($"Transaction {id} not found.");
 
             var next = update(current);
-            if (_tx.TryUpdate(txId, next, current)) return next;
+            if (_tx.TryUpdate(id, next, current)) return next;
         }
     }
 }
 
 public sealed record TransactionRecord(
     Guid TransactionId,
+    string MerchantId,
     string MerchantOrderId,
+    DateTime MerchantTimestampUtc,
     decimal Amount,
     string Currency,
     TransactionStatus Status,
@@ -58,5 +58,7 @@ public sealed record TransactionRecord(
     string SuccessUrl,
     string FailUrl,
     string ErrorUrl,
-    Guid? BankPaymentId
+    Guid? BankPaymentId,
+    string? Stan,
+    DateTime? PspTimestampUtc
 );
