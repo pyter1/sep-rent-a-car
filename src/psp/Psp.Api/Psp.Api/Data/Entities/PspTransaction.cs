@@ -31,4 +31,10 @@ public sealed class PspTransaction
     public DateTime? MerchantNotifiedAtUtc { get; set; }
     public int MerchantNotifyAttempts { get; set; } = 0;
     public string? MerchantNotifyLastError { get; set; }
+    public string? CardBrand { get; set; }
+    public string? PanFirst6 { get; set; }
+    public string? PanLast4 { get; set; }
+
+    // For reconciliation and debugging lifecycle changes
+    public DateTime UpdatedAtUtc { get; set; }
 }

@@ -3,15 +3,15 @@ services:
     image: postgres:16
     container_name: sep_db
     environment:
-      POSTGRES_DB: sep_rentacar
-      POSTGRES_USER: sep_user
-      POSTGRES_PASSWORD: Sep123
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - sep_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sep_user -d sep_rentacar"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -26,11 +26,20 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Default: "Host=db;Port=5432;Database=sep_rentacar;Username=sep_user;Password=Sep123"
+      # ASPNETCORE_URLS: "http://0.0.0.0:7001"
+
+      ConnectionStrings__Default: ${PSP_DB_CONN}
+
       Bank__BaseUrl: "http://bank-api:7002"
       Bank__MerchantId: "PSP_ACQUIRER_MERCHANT_ID"
-      Merchants__WEBSHOP_MERCHANT_001__Password: "WEBSHOP_API_KEY_001"
+
+      Hmac__WebShopPspSecret: ${HMAC_WEBSHOP_PSP}
+      Hmac__PspBankSecret: ${HMAC_PSP_BANK}
+
+      Merchants__WEBSHOP_MERCHANT_001__Password: ${WEBSHOP_MERCHANT_PASSWORD}
+
       Ui__PublicBaseUrl: "http://localhost:4201"
+      ExchangeRates__EUR__RSD: ${FX_EUR_RSD}
     ports:
       - "7001:7001"
 
@@ -46,10 +55,18 @@ services:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Default: "Host=db;Port=5432;Database=sep_rentacar;Username=sep_user;Password=Sep123"
+      # ASPNETCORE_URLS: "http://0.0.0.0:7002"
+
+      ConnectionStrings__Default: ${BANK_DB_CONN}
+
       Psp__BaseUrl: "http://psp-api:7001"
       Psp__MerchantId: "PSP_ACQUIRER_MERCHANT_ID"
+
+      Hmac__PspBankSecret: ${HMAC_PSP_BANK}
+
       Ui__PublicBaseUrl: "http://localhost:4202"
+
+      PaymentToken__Secret: ${PAYMENT_TOKEN_SECRET}
     ports:
       - "7002:7002"
 
@@ -59,13 +76,27 @@ services:
       dockerfile: src/webshop/WebShop.Api/WebShop.Api/Dockerfile
     container_name: webshop_api
     depends_on:
+      db:
+        condition: service_healthy
       psp-api:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      # ASPNETCORE_URLS: "http://0.0.0.0:7003"
+
+      ConnectionStrings__Default: ${WEBSHOP_DB_CONN}
+
+      Hmac__WebShopPspSecret: ${HMAC_WEBSHOP_PSP}
+
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: "webshop"
+      Jwt__Audience: "webshop-ui"
+      Jwt__ExpMinutes: "60"
+
       Psp__BaseUrl: "http://psp-api:7001"
       Psp__MerchantId: "WEBSHOP_MERCHANT_001"
-      Psp__MerchantPassword: "WEBSHOP_API_KEY_001"
+      Psp__MerchantPassword: ${WEBSHOP_MERCHANT_PASSWORD}
+
       PublicBaseUrl: "http://webshop-api:7003"
     ports:
       - "7003:7003"

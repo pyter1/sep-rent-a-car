@@ -198,7 +198,8 @@
       "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "proxyConfig": "projects/bank-ui/proxy.conf.json"
+            "proxyConfig": "projects/bank-ui/proxy.conf.json",
+            "port": 4202
           },
           "configurations": {
             "production": { "buildTarget": "bank-ui:build:production" },

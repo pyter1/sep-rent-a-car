@@ -21,4 +21,10 @@ public sealed class BankPayment
 
     public bool NotifiedPsp { get; set; } = false;
     public PaymentStatus? NotifiedPspStatus { get; set; } = null;
+
+    public string? CardBrand { get; set; }   // e.g. "VISA", "MASTERCARD", "AMEX", "UNKNOWN"
+
+    public string? PanFirst6 { get; set; }
+    public string? PanLast4 { get; set; }    // "1234"
+
 }

@@ -1,7 +1,7 @@
-using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Psp.Api.Data;
+using Psp.Api.Services;
 
 namespace Psp.Api.Controllers;
 
@@ -10,12 +10,12 @@ namespace Psp.Api.Controllers;
 public sealed class MerchantRetryController : ControllerBase
 {
     private readonly PspDbContext _db;
-    private readonly IHttpClientFactory _httpFactory;
+    private readonly MerchantCallbackClient _merchantCallback;
 
-    public MerchantRetryController(PspDbContext db, IHttpClientFactory httpFactory)
+    public MerchantRetryController(PspDbContext db, MerchantCallbackClient merchantCallback)
     {
         _db = db;
-        _httpFactory = httpFactory;
+        _merchantCallback = merchantCallback;
     }
 
     [HttpPost("{id:guid}/notify-merchant")]
@@ -46,19 +46,22 @@ public sealed class MerchantRetryController : ControllerBase
 
         tx.MerchantNotifyAttempts += 1;
 
-        var client = _httpFactory.CreateClient("MerchantCallback");
-
         try
         {
-            var resp = await client.PostAsJsonAsync(callbackUrl, new
-            {
-                pspTransactionId = tx.Id,
-                merchantId = tx.MerchantId,
-                merchantOrderId = tx.MerchantOrderId,
-                bankPaymentId = tx.BankPaymentId,
-                stan = tx.Stan,
-                status = tx.Status.ToString()
-            }, ct);
+            var resp = await _merchantCallback.PostSignedAsync(
+                merchantId: tx.MerchantId,
+                callbackUrl: callbackUrl,
+                payload: new
+                {
+                    pspTransactionId = tx.Id,
+                    merchantId = tx.MerchantId,
+                    merchantOrderId = tx.MerchantOrderId,
+                    bankPaymentId = tx.BankPaymentId,
+                    stan = tx.Stan,
+                    status = tx.Status.ToString()
+                },
+                ct: ct
+            );
 
             if (resp.IsSuccessStatusCode)
             {

@@ -6,5 +6,7 @@ public enum TransactionStatus
     Redirected = 2,
     Paid = 3,
     Failed = 4,
-    Error = 5
+    Error = 5,
+
+    Pending = 6
 }

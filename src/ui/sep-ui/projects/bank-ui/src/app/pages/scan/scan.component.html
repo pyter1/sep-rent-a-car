@@ -1,0 +1,44 @@
+<div class="page">
+  <h1>Scan IPS QR</h1>
+
+  <div class="scan-tools">
+    <button type="button" (click)="startCamera()" [disabled]="scanning">Start camera</button>
+
+    <label class="file-btn">
+      Scan from screenshot
+      <input type="file" accept="image/*" (change)="onFileSelected($event)" />
+    </label>
+  </div>
+
+  <div class="card">
+    <div class="frame">
+      <video #video autoplay playsinline></video>
+      <div class="overlay"></div>
+    </div>
+
+    <div class="status" *ngIf="scanning">Scanning…</div>
+    <div class="error" *ngIf="error">{{ error }}</div>
+
+    <div *ngIf="validation" class="result">
+      <div><b>Valid:</b> {{ validation.ok }}</div>
+      <div *ngIf="validation.embeddedPaymentId"><b>PaymentId:</b> {{ validation.embeddedPaymentId }}</div>
+
+      <div *ngIf="validation.errors?.length">
+        <b>Errors:</b>
+        <ul>
+          <li *ngFor="let e of validation.errors">{{ e }}</li>
+        </ul>
+      </div>
+
+      <button (click)="confirm()" [disabled]="confirming || !validation.ok">
+        {{ confirming ? 'Confirming…' : 'Confirm payment' }}
+      </button>
+
+      <div class="ok" *ngIf="confirmMsg">{{ confirmMsg }}</div>
+    </div>
+
+    <button class="secondary" (click)="start()" [disabled]="scanning">
+      Scan again
+    </button>
+  </div>
+</div>

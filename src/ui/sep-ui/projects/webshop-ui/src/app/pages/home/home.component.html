@@ -1,16 +1,54 @@
-<div class="page">
-  <h1>Rent-a-car (demo)</h1>
-  <p>Select a car and start payment.</p>
+<div style="max-width: 900px; margin: 40px auto; padding: 0 16px;">
+  <h1 style="margin: 0 0 8px;">Rent-a-car (demo)</h1>
+  <p style="margin: 0 0 24px;">Select a car and start payment.</p>
 
-  <div class="error" *ngIf="error">{{ error }}</div>
+  <!-- AUTH -->
+  <div style="border: 1px solid #ddd; border-radius: 12px; padding: 12px; margin-bottom: 16px;">
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <input
+        [(ngModel)]="email"
+        placeholder="email"
+        style="padding: 8px; min-width: 220px;"
+      />
+      <input
+        [(ngModel)]="password"
+        placeholder="password"
+        type="password"
+        style="padding: 8px; min-width: 220px;"
+      />
 
-  <div class="grid">
-    <div class="card" *ngFor="let car of cars">
-      <div class="title">{{ car.name }}</div>
-      <div class="specs">{{ car.specs }}</div>
-      <div class="price">{{ car.priceEur }} EUR / day</div>
+      <button (click)="register()" style="padding: 8px 12px;">Register</button>
+      <button (click)="login()" style="padding: 8px 12px;">Login</button>
+      <button (click)="logout()" style="padding: 8px 12px;">Logout</button>
+    </div>
 
-      <button (click)="rent(car)" [disabled]="loadingCarId === car.id">
+    <div style="margin-top: 10px;">
+      Token:
+      <strong>{{ auth.getToken() ? 'YES' : 'NO' }}</strong>
+    </div>
+
+    <div *ngIf="error" style="margin-top: 10px; color: #b00020;">
+      {{ error }}
+    </div>
+  </div>
+
+  <!-- CARS -->
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+    <div
+      *ngFor="let car of cars"
+      style="border: 1px solid #ddd; border-radius: 12px; padding: 16px;"
+    >
+      <div style="font-weight: 700; font-size: 18px;">{{ car.name }}</div>
+      <div style="opacity: 0.8; margin: 6px 0 10px;">{{ car.specs }}</div>
+      <div style="font-size: 18px; margin-bottom: 12px;">
+        {{ car.priceEur }} EUR / day
+      </div>
+
+      <button
+        (click)="rent(car)"
+        [disabled]="loadingCarId === car.id"
+        style="width: 100%; padding: 10px 12px; border-radius: 10px;"
+      >
         {{ loadingCarId === car.id ? 'Starting...' : 'Rent this car' }}
       </button>
     </div>

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Bank.Api.Data;
+using Common.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,11 +10,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 // builder.Services.AddSingleton<Bank.Api.Storage.PaymentSessionStore>();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddHttpClient<Bank.Api.Services.PspNotifyClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["Psp:BaseUrl"]!);
+    client.BaseAddress = new Uri(builder.Configuration["Psp:BaseUrl"] ?? "http://psp-api:7001");
 });
+builder.Services.AddSingleton<Bank.Api.Services.IpsQrService>();
+
 builder.Services.AddDbContext<BankDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
@@ -31,6 +35,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseMiddleware<CorrelationIdMiddleware>();
+
+app.Use(async (ctx, next) =>
+{
+    ctx.Request.EnableBuffering();
+    await next();
+});
 
 app.MapControllers();
 

@@ -10,31 +10,106 @@
     <div><b>Status:</b> {{ p.status }}</div>
     <div><b>Expires:</b> {{ p.expiresAtUtc }}</div>
 
-    <h3>Card details</h3>
+    <div class="nav" *ngIf="backToPspUrl || backToWebShopUrl">
+      <a *ngIf="backToPspUrl" [href]="backToPspUrl" target="_blank" rel="noopener noreferrer">
+        Back to PSP
+      </a>
+      <a *ngIf="backToWebShopUrl" [href]="backToWebShopUrl" target="_blank" rel="noopener noreferrer">
+        Back to WebShop
+      </a>
+    </div>
 
-    <label>PAN</label>
-    <input [(ngModel)]="form.pan" />
+    <!-- Tabs -->
+    <div class="tabs">
+      <button type="button" (click)="setMode('card')" [class.active]="mode === 'card'">
+        Card
+      </button>
+      <button type="button" (click)="setMode('qr')" [class.active]="mode === 'qr'">
+        QR
+      </button>
+    </div>
 
-    <div class="row">
-      <div>
-        <label>Expiry month</label>
-        <input type="number" [(ngModel)]="form.expiryMonth" />
+    <!-- CARD -->
+    <div *ngIf="mode === 'card'">
+      <h3>Card details</h3>
+
+      <label>PAN</label>
+      <div class="panRow">
+        <input
+          [ngModel]="form.pan"
+          (ngModelChange)="onPanInput($event)"
+          inputmode="numeric"
+          autocomplete="cc-number"
+        />
+      <span class="brand" [class.on]="!!detectedBrand">
+        <img *ngIf="brandIconPath" [src]="brandIconPath" [alt]="detectedBrand" height="18" />
+        <span *ngIf="!brandIconPath">{{ detectedBrand || 'CARD' }}</span>
+      </span>
+
       </div>
-      <div>
-        <label>Expiry year</label>
-        <input type="number" [(ngModel)]="form.expiryYear" />
+      <div class="hint">Entered: {{ maskedPanForDisplay }}</div>
+
+      <div class="row">
+        <div>
+          <label>Expiry month</label>
+          <input type="number" [(ngModel)]="form.expiryMonth" autocomplete="cc-exp-month" />
+        </div>
+        <div>
+          <label>Expiry year</label>
+          <input type="number" [(ngModel)]="form.expiryYear" autocomplete="cc-exp-year" />
+        </div>
+        <div>
+          <label>CVV</label>
+          <input type="password" [(ngModel)]="form.cvv" autocomplete="cc-csc" />
+        </div>
       </div>
-      <div>
-        <label>CVV</label>
-        <input [(ngModel)]="form.cvv" />
+
+      <label>Cardholder</label>
+      <input [(ngModel)]="form.cardholderName" autocomplete="cc-name" />
+
+      <button (click)="submit()" [disabled]="submitting">
+        {{ submitting ? 'Processing...' : 'Pay' }}
+      </button>
+
+      <div class="tokenWarn" *ngIf="!paymentToken">
+        Missing payment token in URL. Bank API will reject requests.
       </div>
     </div>
 
-    <label>Cardholder</label>
-    <input [(ngModel)]="form.cardholderName" />
+    <!-- QR -->
+    <div *ngIf="mode === 'qr'">
+      <h3>IPS QR</h3>
 
-    <button (click)="submit()" [disabled]="submitting">
-      {{ submitting ? 'Processing...' : 'Pay' }}
-    </button>
+      <div class="error" *ngIf="qrError">{{ qrError }}</div>
+      <div *ngIf="qrLoading">Preparing QR…</div>
+
+      <!-- QR #1: IPS payload -->
+      <div class="qrBox" *ngIf="qrDataUrl">
+        <img [src]="qrDataUrl" alt="IPS QR" />
+      </div>
+
+      <!-- QR #2: opens scanner on phone -->
+      <div *ngIf="scanQrDataUrl" style="margin-top: 16px;">
+        <h3>Open scanner (Phone)</h3>
+        <div class="qrBox">
+          <img [src]="scanQrDataUrl" alt="Open scanner QR" />
+        </div>
+        <div class="hint">
+          Scan this QR with your phone camera to open the scanner page.
+        </div>
+      </div>
+
+      <div class="hint" *ngIf="qrDataUrl">
+        Scanner URL: <b>{{ scanUrl }}</b>
+      </div>
+
+      <a *ngIf="qrDataUrl" [href]="scanUrl" target="_blank" rel="noopener noreferrer">
+        Open scanner
+      </a>
+
+      <div class="tokenWarn" *ngIf="!paymentToken">
+        Missing payment token in URL. Bank API will reject requests.
+      </div>
+    </div>
   </div>
 </div>

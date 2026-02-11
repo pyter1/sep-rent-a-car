@@ -29,6 +29,7 @@ export class CheckoutComponent {
   loading = true;
   paying = false;
   error: string | null = null;
+  reconcileMsg: string | null = null;
 
   constructor(private route: ActivatedRoute, private http: HttpClient,  private cdr: ChangeDetectorRef) {}
 
@@ -69,21 +70,41 @@ export class CheckoutComponent {
   startQr() {
     this.start(`/api/psp/transactions/${this.txId}/start-qr`);
   }
+  reconcile() {
+    if (!this.txId) return;
+
+    this.reconcileMsg = null;
+    this.http.post<any>(`/api/psp/transactions/${this.txId}/reconcile`, {}).subscribe({
+      next: (res) => {
+        this.reconcileMsg = `Reconcile: ${res.newStatus} (bank: ${res.bankStatus})`;
+        this.loadTx(false);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.reconcileMsg = err?.error?.message ?? 'Reconcile failed.';
+        this.cdr.detectChanges();
+      }
+    });
+  }
 
   private start(url: string) {
     this.paying = true;
     this.error = null;
+    this.cdr.detectChanges();
 
     this.http.post<StartPaymentResponse>(url, {}).subscribe({
       next: (res) => {
         console.log('[Checkout] start ok', res);
+        this.cdr.detectChanges();
         window.location.href = res.redirectUrl;
       },
       error: (err) => {
         console.log('[Checkout] start error', err);
         this.error = err?.error?.message ?? 'Unable to start payment.';
         this.paying = false;
+        this.cdr.detectChanges();
       }
     });
   }
+
 }
